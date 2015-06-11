@@ -1,7 +1,8 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
-
+bin/
+include/
 # C extensions
 *.so
 
@@ -55,3 +56,6 @@ docs/_build/
 
 # PyBuilder
 target/
+
+# pip stuff
+pip-selfcheck.json
