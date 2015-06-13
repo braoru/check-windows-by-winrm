@@ -35,7 +35,7 @@ update-ca-trust extract
 
 ```
 
-##Enbale auth on Windows 2012r2 +
+##Enable auth on Windows 2012r2 +
 ```PowerShell
 winrm set winrm/config/client/auth @{Basic="true"}
 winrm set winrm/config/service/auth @{Basic="true"}
