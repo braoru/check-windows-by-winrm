@@ -11,7 +11,7 @@ Currently it's only tested with SSL+BasicAuth on 2012R2
 [python] -- WinRM (PowerShellScript)-- [Windows]
 ```
 
-* PowerShell take a JSON Object as input inserted before execution
+* PowerShell take a Base64(UTF8(JSON object)) as input
 * PowerShell return a Base64(UTF8(JSON object)) as output
 
 ##PowerShell script architecture
@@ -32,6 +32,13 @@ Currently it's only tested with SSL+BasicAuth on 2012R2
 
 * Snippet placeholder ```{xx}``` of code are replaced before execution
 * Currently [generate_ps](https://github.com/braoru/check-windows-by-winrm/blob/master/winrm_checks.py#L66) is in charge of snippet placeholder replacement
+
+##Example with the echo test
+
+Original PowerShell
+```PowerShell
+
+
 
 #Install
 
