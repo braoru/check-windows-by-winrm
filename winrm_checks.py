@@ -37,7 +37,8 @@ class PowerShellHelpers(object):
     def ececute_powershell(
             cls,
             client,
-            script
+            script,
+            debug=False
     ):
         """
         Execute powershel `script` on `client`
@@ -51,6 +52,11 @@ class PowerShellHelpers(object):
         """
         response = client.run_ps(script)
 
+        if debug:
+            print("raw output")
+            print("----------")
+            print(response)
+
         if not response:
             raise Exception("cannot fetch values from host")
 
@@ -60,13 +66,18 @@ class PowerShellHelpers(object):
 
         return result
 
-    PS_INPUT_JSON = """$CheckInputJSON = '{data}' | ConvertFrom-Json"""
+    PS_INPUT_JSON = """
+#Format input
+$CheckInputJsonBytes = [System.Convert]::FromBase64String("{data}")
+$CheckInputJson = [System.Text.Encoding]::UTF8.GetString($CheckInputJsonBytes)
+$CheckInputDaTa = $CheckInputJson | ConvertFrom-Json
+"""
 
     @classmethod
     def generate_ps(
             cls,
-            input_data,
-            script
+            script,
+            input_data='{}'
     ):
         """
         Generate the powershell script by resolving `{palceholder}` with `input_data` and
@@ -77,17 +88,21 @@ class PowerShellHelpers(object):
         :type script: str
         :return: Fullfiled script
         """
+        output_script = script
+
         json_data = json.dumps(
             input_data,
             sort_keys=True
         )
+        json_data = base64.urlsafe_b64encode(json_data)
         data_string = cls.PS_INPUT_JSON.format(data=json_data)
 
-        output_script = script.format(
+        output_script = output_script.format(
             check_input_json=data_string
         )
 
         return output_script
+
 
 class OutputFormatHelpers(object):
 

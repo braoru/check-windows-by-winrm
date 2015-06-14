@@ -62,16 +62,20 @@ DEFAULT_CRITICAL = 1500
 # Powershell
 # ----------
 ps_script = """
+#Functions
+#---------
+
 #check input data
 #----------------
 {check_input_json}
 
 
 #Obtain data
-$CheckOuputJson = $CheckInputJSON | ConvertTo-Json
-
+#-----------
+$CheckOutputObj = $CheckInputDaTa
 
 #Format output
+$CheckOuputJson = $CheckOutputObj | ConvertTo-Json
 $CheckOuputJsonBytes  = [System.Text.Encoding]::UTF8.GetBytes($CheckOuputJson)
 $CheckOuputJsonBytesBase64 = [System.Convert]::ToBase64String($CheckOuputJsonBytes)
 Write-Host $CheckOuputJsonBytesBase64
@@ -103,6 +107,9 @@ parser.add_option('-w', '--warning',
 parser.add_option('-c', '--critical',
                   dest="critical", type="int",
                   help='Critical value for connection. In [ms]. Default : 300 [ms]')
+parser.add_option('--debug',
+                  dest="debug", default=False, action="store_true",
+                  help='Enable debug')
 
 if __name__ == '__main__':
     # Ok first job : parse args
@@ -116,6 +123,7 @@ if __name__ == '__main__':
     scheme = opts.scheme
     user = opts.user
     password = opts.password
+    debug = opts.debug
 
     # Try to get numeic warning/critical values
     s_warning = opts.warning or DEFAULT_WARNING
@@ -146,15 +154,25 @@ if __name__ == '__main__':
 
         #prepare the script
         executable_ps_script = PowerShellHelpers.generate_ps(
-            data,
-            ps_script
+            ps_script,
+            data
         )
+
+        if debug:
+            print("Script to execute")
+            print("-----------------")
+            print(executable_ps_script)
 
         #execute the scripte
         result = PowerShellHelpers.ececute_powershell(
             client,
-            executable_ps_script
+            executable_ps_script,
+            debug
         )
+        if debug:
+            print("check output")
+            print("------------")
+            print(result)
 
         #get request time
         stop_time = datetime.now()
