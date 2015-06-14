@@ -5,6 +5,36 @@ Windows check by winrm codebase
 
 Currently it's only tested with SSL+BasicAuth on 2012R2
 
+#Global architecture
+
+```Bash
+[python] -- WinRM (PowerShellScript)-- [Windows]
+```
+
+* PowerShell take a JSON Object as input inserted before execution
+* PowerShell return a Base64(UTF8(JSON object)) as output
+
+##PowerShell script architecture
+
+```PowerShell
+#Json input
+{Transform input json to PowerShell Object}
+
+#Methods
+{Some methods and tools}
+
+#Check code
+#There is the code dedicated to extract data to a PowerShell object
+
+#Output
+#Here is the code to output data as a base64 UTF8 encoded json object
+```
+
+* Snippet placeholder ```{xx}``` of code are replaced before execution
+* Currently [generate_ps](https://github.com/braoru/check-windows-by-winrm/blob/master/winrm_checks.py#L66) is in charge of snippet placeholder replacement
+
+#Install
+
 ##Install check
 
 ```Bash
