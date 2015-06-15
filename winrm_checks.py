@@ -77,7 +77,7 @@ $CheckInputDaTa = $CheckInputJson | ConvertFrom-Json
     def generate_ps(
             cls,
             script,
-            input_data='{}'
+            input_data={}
     ):
         """
         Generate the powershell script by resolving `{palceholder}` with `input_data` and
