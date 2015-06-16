@@ -78,7 +78,7 @@ update-ca-trust extract
 
 ##Enable auth on Windows 2008 R2 and 2012r2 +
 
-# import valid certificate in "computer account" personal store (to automate)
+import valid certificate in "computer account" personal store (to automate)
 
 ```PowerShell
 #Configure WinRM to listen on HTTPS
