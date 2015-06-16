@@ -77,6 +77,7 @@ update-ca-trust extract
 - Windows Management Framework 4 (http://www.microsoft.com/fr-fr/download/details.aspx?id=40855 - Windows6.1-KB2819745-x64-MultiPkg.msu)
 
 ##Enable auth on Windows 2008 R2 and 2012r2 +
+
 # import valid certificate in "computer account" personal store (to automate)
 
 ```PowerShell
