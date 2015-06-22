@@ -31,6 +31,7 @@ version = "0.0.1"
 import optparse
 import sys
 import os
+import traceback
 from pprint import pprint
 from statistics import mean
 
@@ -218,5 +219,9 @@ if __name__ == '__main__':
 
         print(output)
     except Exception as e:
+        if debug:
+            print(e)
+            the_type, value, tb = sys.exc_info()
+            traceback.print_tb(tb)
         print("Error: {m}".format(m=e.message))
         sys.exit(2)
