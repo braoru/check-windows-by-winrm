@@ -71,7 +71,7 @@ ps_script = """
 
 #Obtain data
 #-----------
-$CheckOutputObj = Get-counter -Counter "\Processor(_Total)\% Processor Time" -SampleInterval 1 -MaxSamples 5 |
+$CheckOutputObj = Get-counter -Counter "\Processor(_Total)\% Processor Time" -SampleInterval $CheckInputDaTa.sample_interval -MaxSamples $CheckInputDaTa.max_sample |
     Foreach-Object {{$_.CounterSamples[0].CookedValue}}
 
 #Format output
@@ -108,6 +108,12 @@ parser.add_option('-w', '--warning',
 parser.add_option('-c', '--critical',
                   dest="critical", type="float",
                   help='Critical value for connection. In [ms]. Default : 95.0 [%]')
+parser.add_option('--sample-interval',
+                  dest="sample_interval", type="int", default=1,
+                  help='Cpu sampling interval. In [s]. Default : 1 [s]')
+parser.add_option('--max-sample',
+                  dest="max_sample", type="int", default=5,
+                  help='Cpu sampling number. In [number]. Default : 5')
 parser.add_option('--debug',
                   dest="debug", default=False, action="store_true",
                   help='Enable debug')
@@ -125,6 +131,10 @@ if __name__ == '__main__':
     user = opts.user
     password = opts.password
     debug = opts.debug
+
+    #sampling parameters
+    sample_interval = opts.sample_interval
+    max_sample = opts.max_sample
 
     # Try to get numeic warning/critical values
     s_warning = opts.warning or DEFAULT_WARNING
@@ -144,10 +154,16 @@ if __name__ == '__main__':
             )
         )
 
+        #sampling parameters
+        sampling_parameters = {
+            "sample_interval": sample_interval,
+            "max_sample": max_sample
+        }
+
         #prepare the script
         executable_ps_script = PowerShellHelpers.generate_ps(
             ps_script,
-            None
+            sampling_parameters
         )
 
         if debug:
@@ -170,9 +186,11 @@ if __name__ == '__main__':
         #Process data
         five_sec_load_average = mean(raw_cpu_sample)
 
+        measurement_time = sample_interval * max_sample
+
         #Format perf data string
         con_perf_data_string = OutputFormatHelpers.perf_data_string(
-            label="5s_load_avg",
+            label="{t}s_load_avg".format(t=measurement_time),
             value=five_sec_load_average,
             warn=s_warning,
             crit=s_critical,
@@ -183,8 +201,9 @@ if __name__ == '__main__':
 
         #check logic
         status = 'OK'
-        avg_message = "{l}% 5s load average".format(
-            l=five_sec_load_average
+        avg_message = "{l}% {t}s load average".format(
+            l=five_sec_load_average,
+            t=measurement_time
         )
         if five_sec_load_average >= s_warning:
             status = 'Warning'
