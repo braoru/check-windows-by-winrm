@@ -45,7 +45,9 @@ coverage.xml
 *,cover
 
 .idea
+.idea/
 lib64
+lib64/
 
 # Translations
 *.mo

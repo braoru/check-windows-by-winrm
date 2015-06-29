@@ -66,7 +66,7 @@ WINDOWS_SERVICE_STATUS = {
     3: "StopPending"
 }
 
-DEFAULT_OK= frozenset(
+DEFAULT_OK = frozenset(
     [
         "Running"
     ]
@@ -123,7 +123,6 @@ ps_script = """
 
 #Obtain data
 #-----------
-#$CheckOutputObj = Get-WmiObject -Class Win32_Service -Filter "startmode = 'auto' AND state != 'running' AND Exitcode !=0"
 $CheckOutputObj = Get-WmiObject -Class Win32_Service
 
 
