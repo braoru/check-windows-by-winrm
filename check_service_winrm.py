@@ -31,8 +31,7 @@ version = "0.0.1"
 import optparse
 import sys
 import os
-from datetime import datetime
-from math import ceil
+import traceback
 
 try:
     import winrm
@@ -223,5 +222,9 @@ if __name__ == '__main__':
 
         print(output)
     except Exception as e:
-        print("Error: {m}".format(m=e.message))
+        if debug:
+            print(e)
+            the_type, value, tb = sys.exc_info()
+            traceback.print_tb(tb)
+        print("Error: {m}".format(m=e))
         sys.exit(2)
