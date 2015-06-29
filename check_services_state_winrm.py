@@ -177,14 +177,6 @@ parser.add_option('--auto-include-list',
                   help='Service name to include into automatic but not running service list to check. '
                        'Define service list as a space delimited list. Ex: "service_d service_e"')
 
-# Check for running manually started
-# warning, cirtical or nothing
-# Manuaé service in not 0 error code
-#cirital, warning or northing
-# Check for not running but in auto-mode
-# Exclude list from auto not running
-# remove from exclude list
-# add to exclude list
 
 if __name__ == '__main__':
     # Ok first job : parse args
