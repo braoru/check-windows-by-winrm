@@ -84,8 +84,8 @@ import valid certificate in "computer account" personal store (to automate)
 #Configure WinRM to listen on HTTPS
 winrm quickconfig -transport:https
 
-winrm set winrm/config/client/auth @{Basic="true"}
-winrm set winrm/config/service/auth @{Basic="true"}
+winrm set winrm/config/client/auth '@{Basic="true"}'
+winrm set winrm/config/service/auth '@{Basic="true"}'
 
 ```
 
