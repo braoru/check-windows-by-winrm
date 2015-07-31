@@ -189,6 +189,17 @@ if __name__ == '__main__':
 
         measurement_time = sample_interval * max_sample
 
+        #check logic
+        status = 'OK'
+        avg_message = "{l}% {t}s load average".format(
+            l=five_sec_load_average,
+            t=measurement_time
+        )
+        if five_sec_load_average >= s_warning:
+            status = 'Warning'
+        if five_sec_load_average >= s_critical:
+            status = 'Critical'
+            
         #Format perf data string
         con_perf_data_string = OutputFormatHelpers.perf_data_string(
             label="{t}s_load_avg".format(t=measurement_time),
@@ -200,17 +211,6 @@ if __name__ == '__main__':
             UOM='%'
         )
 
-        #check logic
-        status = 'OK'
-        avg_message = "{l}% {t}s load average".format(
-            l=five_sec_load_average,
-            t=measurement_time
-        )
-        if five_sec_load_average >= s_warning:
-            status = 'Warning'
-        if five_sec_load_average >= s_critical:
-            status = 'Critical'
-
         output = OutputFormatHelpers.check_output_string(
             status,
             avg_message,
@@ -218,10 +218,18 @@ if __name__ == '__main__':
         )
 
         print(output)
+
     except Exception as e:
         if debug:
             print(e)
             the_type, value, tb = sys.exc_info()
             traceback.print_tb(tb)
-        print("Error: {m}".format(m=e.message))
+        print("Error: {m}".format(m=e))
         sys.exit(2)
+
+    finally:
+        if status == "Critical":
+            sys.exit(2)
+        if status == "Warning":
+            sys.exit(1)
+        sys.exit(0)

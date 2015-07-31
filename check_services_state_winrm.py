@@ -331,3 +331,10 @@ if __name__ == '__main__':
             traceback.print_tb(tb)
         print("Error: {m}".format(m=e))
         sys.exit(2)
+
+    finally:
+        if status == "Critical":
+            sys.exit(2)
+        if status == "Warning":
+            sys.exit(1)
+        sys.exit(0)

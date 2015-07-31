@@ -24,7 +24,7 @@
 # DEALINGS IN THE SOFTWARE.
 #
 
-author = "Sebastien Pasche"
+author = "Mikael Bugnon"
 maintainer = "Sebastien Pasche"
 version = "0.0.1"
 
@@ -32,6 +32,8 @@ import optparse
 import sys
 import os
 import traceback
+from pprint import pprint
+from statistics import mean
 
 try:
     import winrm
@@ -53,40 +55,9 @@ except ImportError:
 
 #DEFAULT LIMITS
 #--------------
+DEFAULT_WARNING = 0.5
+DEFAULT_CRITICAL = 0.5
 
-#https://msdn.microsoft.com/en-us/library/system.serviceprocess.servicecontrollerstatus(v=vs.110).aspx
-WINDOWS_SERVICE_STATUS = {
-    5: "ContinuePending",
-    7: "Paused",
-    6: "PausePending",
-    4: "Running",
-    2: "StartPending",
-    1: "Stopped",
-    3: "StopPending"
-}
-
-
-DEFAULT_OK= frozenset(
-    [
-        4
-    ]
-)
-
-DEFAULT_WARNING = frozenset(
-    [
-        7,
-        6,
-        2,
-        5
-    ]
-)
-
-DEFAULT_CRITICAL = frozenset(
-    [
-        1,
-        3
-    ]
-)
 
 # Powershell
 # ----------
@@ -101,20 +72,35 @@ ps_script = """
 
 #Obtain data
 #-----------
-$CheckOutputObj = Get-Service -name $CheckInputDaTa.service_to_check
+$ntp_result = (w32tm /stripchart /computer:time.leshop.local /samples:1) | select -last 1
+#$ntp_delay = (($ntp_result -replace (".*d\:")).Substring(2) -replace "s.*").Substring(0,9)
+$ntp_offset = (($ntp_result -replace ".*o\:").substring(2)  -replace "s.*").substring(0,9)
+$ntp_offset = [double]$ntp_offset
+
+#$obj = New-Object PSObject
+#Add-Member -InputObject $obj -MemberType NoteProperty -Name ntp_delay -Value "$ntp_delay"
+#Add-Member -InputObject $obj -MemberType NoteProperty -Name ntp_offset -Value "$ntp_offset"
 
 #Format output
-$CheckOuputJson = $CheckOutputObj | ConvertTo-Json
+$CheckOuputJson = $ntp_offset | ConvertTo-Json
 $CheckOuputJsonBytes  = [System.Text.Encoding]::UTF8.GetBytes($CheckOuputJson)
 $CheckOuputJsonBytesBase64 = [System.Convert]::ToBase64String($CheckOuputJsonBytes)
 Write-Host $CheckOuputJsonBytesBase64
 """
 
 
+
 # OPT parsing
 # -----------
 parser = optparse.OptionParser(
     "%prog [options]", version="%prog " + version)
+usage = """%prog [options]
+
+Retrieve ntp offset in s
+"""
+
+parser = optparse.OptionParser(usage=usage)
+
 parser.add_option('-H', '--hostname',
                   dest="hostname",
                   help='Hostname to connect to')
@@ -130,9 +116,12 @@ parser.add_option('-U', '--user',
 parser.add_option('-P', '--password',
                   dest="password",
                   help='Password. By default will use void')
-parser.add_option('-S', '--service',
-                  dest="service", default=None,
-                  help='Service to check')
+parser.add_option('-w', '--warning',
+                  dest="warning", type="float",
+                  help='Warning value for connection. In [ms]. Default : 0.5 [s]')
+parser.add_option('-c', '--critical',
+                  dest="critical", type="float",
+                  help='Critical value for connection. In [ms]. Default : 0.5 [s]')
 parser.add_option('--debug',
                   dest="debug", default=False, action="store_true",
                   help='Enable debug')
@@ -151,11 +140,9 @@ if __name__ == '__main__':
     password = opts.password
     debug = opts.debug
 
-    # get service
-    if opts.service is None:
-        raise Exception("You must specify a service to check")
-
-    service_name = opts.service
+    # Try to get numeic warning/critical values
+    s_warning = opts.warning or DEFAULT_WARNING
+    s_critical = opts.critical or DEFAULT_CRITICAL
 
     try:
         # Connect to the remote host
@@ -171,15 +158,10 @@ if __name__ == '__main__':
             )
         )
 
-        # Fill script data
-        data = {
-            "service_to_check": service_name
-        }
 
         #prepare the script
         executable_ps_script = PowerShellHelpers.generate_ps(
-            ps_script,
-            data
+            ps_script
         )
 
         if debug:
@@ -188,38 +170,43 @@ if __name__ == '__main__':
             print(executable_ps_script)
 
         #execute the scripte
-        service_state = PowerShellHelpers.ececute_powershell(
+        ntp_offset = PowerShellHelpers.ececute_powershell(
             client,
             executable_ps_script,
             debug
         )
+
         if debug:
             print("check output")
             print("------------")
-            print(service_state)
+            pprint(ntp_offset)
 
         #check logic
-        service_status_code = service_state['Status']
-        if service_status_code in DEFAULT_OK:
-            status = "OK"
-        elif service_status_code in DEFAULT_WARNING:
-            status = "Warning"
-        elif service_status_code in DEFAULT_CRITICAL:
-            status = "Critical"
-        else:
-            raise Exception("Invalid service status")
-
-        message = "{s} state is : {status}".format(
-            s=service_name,
-            status=WINDOWS_SERVICE_STATUS[service_status_code]
+        status = 'OK'
+        avg_message = "{l}s ntp offset".format(
+            l=ntp_offset            
         )
 
+        if ntp_offset >= s_critical:
+            status = 'Critical'
+            
+        #Format perf data string
+        con_perf_data_string = OutputFormatHelpers.perf_data_string(
+            label="{t}s_ntp_offset".format(t=ntp_offset),
+            value=ntp_offset,
+            warn=s_warning,
+            crit=s_critical,
+            min='0.0',
+            max='0.5',
+            UOM='s'
+        )
+
+        #print output
         output = OutputFormatHelpers.check_output_string(
             status,
-            message,
-            None
+            avg_message,
+            [con_perf_data_string]
         )
-
         print(output)
 
     except Exception as e:

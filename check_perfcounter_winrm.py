@@ -24,7 +24,7 @@
 # DEALINGS IN THE SOFTWARE.
 #
 
-author = "Sebastien Pasche"
+author = "Mikael Bugnon"
 maintainer = "Sebastien Pasche"
 version = "0.0.1"
 
@@ -32,6 +32,8 @@ import optparse
 import sys
 import os
 import traceback
+from pprint import pprint
+from statistics import mean
 
 try:
     import winrm
@@ -53,40 +55,9 @@ except ImportError:
 
 #DEFAULT LIMITS
 #--------------
+DEFAULT_WARNING = 80.0
+DEFAULT_CRITICAL = 95.0
 
-#https://msdn.microsoft.com/en-us/library/system.serviceprocess.servicecontrollerstatus(v=vs.110).aspx
-WINDOWS_SERVICE_STATUS = {
-    5: "ContinuePending",
-    7: "Paused",
-    6: "PausePending",
-    4: "Running",
-    2: "StartPending",
-    1: "Stopped",
-    3: "StopPending"
-}
-
-
-DEFAULT_OK= frozenset(
-    [
-        4
-    ]
-)
-
-DEFAULT_WARNING = frozenset(
-    [
-        7,
-        6,
-        2,
-        5
-    ]
-)
-
-DEFAULT_CRITICAL = frozenset(
-    [
-        1,
-        3
-    ]
-)
 
 # Powershell
 # ----------
@@ -101,7 +72,8 @@ ps_script = """
 
 #Obtain data
 #-----------
-$CheckOutputObj = Get-Service -name $CheckInputDaTa.service_to_check
+$CheckOutputObj = Get-counter -Counter $CheckInputDaTa.perfcounter_to_check -SampleInterval $CheckInputDaTa.sample_interval -MaxSamples $CheckInputDaTa.max_sample |
+    Foreach-Object {{$_.CounterSamples[0].CookedValue}}
 
 #Format output
 $CheckOuputJson = $CheckOutputObj | ConvertTo-Json
@@ -111,8 +83,9 @@ Write-Host $CheckOuputJsonBytesBase64
 """
 
 
+
 # OPT parsing
-# -----------
+# ----------- 
 parser = optparse.OptionParser(
     "%prog [options]", version="%prog " + version)
 parser.add_option('-H', '--hostname',
@@ -130,9 +103,21 @@ parser.add_option('-U', '--user',
 parser.add_option('-P', '--password',
                   dest="password",
                   help='Password. By default will use void')
-parser.add_option('-S', '--service',
-                  dest="service", default=None,
-                  help='Service to check')
+parser.add_option('-C',
+                  dest="perfcounter_to_check", default=None,
+                  help='Performance Counter to check')
+parser.add_option('-w', '--warning',
+                  dest="warning", type="float",
+                  help='Warning value for connection. In [ms]. Default : 80.0 [%]')
+parser.add_option('-c', '--critical',
+                  dest="critical", type="float",
+                  help='Critical value for connection. In [ms]. Default : 95.0 [%]')
+parser.add_option('--sample-interval',
+                  dest="sample_interval", type="int", default=1,
+                  help='Sampling interval. In [s]. Default : 1 [s]')
+parser.add_option('--max-sample',
+                  dest="max_sample", type="int", default=5,
+                  help='Sampling number. In [number]. Default : 5')
 parser.add_option('--debug',
                   dest="debug", default=False, action="store_true",
                   help='Enable debug')
@@ -151,11 +136,19 @@ if __name__ == '__main__':
     password = opts.password
     debug = opts.debug
 
-    # get service
-    if opts.service is None:
-        raise Exception("You must specify a service to check")
+    #sampling parameters
+    sample_interval = opts.sample_interval
+    max_sample = opts.max_sample
 
-    service_name = opts.service
+    # Try to get numeic warning/critical values
+    s_warning = opts.warning or DEFAULT_WARNING
+    s_critical = opts.critical or DEFAULT_CRITICAL
+
+    # get Performance counter
+    if opts.perfcounter_to_check is None:
+        raise Exception("You must specify a performance counter to check")
+
+    perfcounter_to_check = opts.perfcounter_to_check
 
     try:
         # Connect to the remote host
@@ -171,15 +164,18 @@ if __name__ == '__main__':
             )
         )
 
-        # Fill script data
-        data = {
-            "service_to_check": service_name
+        #sampling parameters
+        sampling_parameters = {
+            "sample_interval": sample_interval,
+            "max_sample": max_sample,
+            "perfcounter_to_check": perfcounter_to_check
         }
 
+        
         #prepare the script
         executable_ps_script = PowerShellHelpers.generate_ps(
             ps_script,
-            data
+            sampling_parameters
         )
 
         if debug:
@@ -187,37 +183,51 @@ if __name__ == '__main__':
             print("-----------------")
             print(executable_ps_script)
 
-        #execute the scripte
-        service_state = PowerShellHelpers.ececute_powershell(
+        #execute the script
+        raw_counter_sample = PowerShellHelpers.ececute_powershell(
             client,
             executable_ps_script,
             debug
         )
+
         if debug:
             print("check output")
             print("------------")
-            print(service_state)
+            pprint(raw_counter_sample)
+
+        #Process data
+        five_sec_load_average = mean(raw_counter_sample)
+
+        measurement_time = sample_interval * max_sample
 
         #check logic
-        service_status_code = service_state['Status']
-        if service_status_code in DEFAULT_OK:
-            status = "OK"
-        elif service_status_code in DEFAULT_WARNING:
-            status = "Warning"
-        elif service_status_code in DEFAULT_CRITICAL:
-            status = "Critical"
-        else:
-            raise Exception("Invalid service status")
-
-        message = "{s} state is : {status}".format(
-            s=service_name,
-            status=WINDOWS_SERVICE_STATUS[service_status_code]
+        status = 'OK'
+        avg_message = "{l}% {t}s load average".format(
+            l=five_sec_load_average,
+            t=measurement_time
         )
+        if five_sec_load_average >= s_warning:
+            status = 'Warning'
+        if five_sec_load_average >= s_critical:
+            status = 'Critical'
+
+
+        #Format perf data string
+        con_perf_data_string = OutputFormatHelpers.perf_data_string(
+            label="{t}s_load_avg".format(t=measurement_time),
+            value=five_sec_load_average,
+            warn=s_warning,
+            crit=s_critical,
+            min='0.0',
+            max='100.0',
+            UOM='%'
+        )
+
 
         output = OutputFormatHelpers.check_output_string(
             status,
-            message,
-            None
+            avg_message,
+            [con_perf_data_string]
         )
 
         print(output)

@@ -24,7 +24,7 @@
 # DEALINGS IN THE SOFTWARE.
 #
 
-author = "Sebastien Pasche"
+author = "Mikael Bugnon"
 maintainer = "Sebastien Pasche"
 version = "0.0.1"
 
@@ -32,6 +32,8 @@ import optparse
 import sys
 import os
 import traceback
+from pprint import pprint
+from statistics import mean
 
 try:
     import winrm
@@ -40,102 +42,48 @@ except ImportError:
     print "ERROR : this plugin needs the local winrm lib. Please install it"
     sys.exit(2)
 
-
 #Ok try to load our directory to load the plugin utils.
 my_dir = os.path.dirname(__file__)
 sys.path.insert(0, my_dir)
 
 try:
-    from winrm_checks import OutputFormatHelpers, PowerShellHelpers
+    from winrm_checks import OutputFormatHelpers, PowerShellHelpers, MSSQLHelpers, WindowsSystemHelpers
 except ImportError:
     print "ERROR : this plugin needs the local winrm lib. Please install it"
     sys.exit(2)
 
 #DEFAULT LIMITS
 #--------------
-
-#https://msdn.microsoft.com/en-us/library/system.serviceprocess.servicecontrollerstatus(v=vs.110).aspx
-WINDOWS_SERVICE_STATUS = {
-    5: "ContinuePending",
-    7: "Paused",
-    6: "PausePending",
-    4: "Running",
-    2: "StartPending",
-    1: "Stopped",
-    3: "StopPending"
-}
-
-
-DEFAULT_OK= frozenset(
-    [
-        4
-    ]
-)
-
-DEFAULT_WARNING = frozenset(
-    [
-        7,
-        6,
-        2,
-        5
-    ]
-)
-
-DEFAULT_CRITICAL = frozenset(
-    [
-        1,
-        3
-    ]
-)
-
-# Powershell
-# ----------
-ps_script = """
-#Functions
-#---------
-
-#check input data
-#----------------
-{check_input_json}
-
-
-#Obtain data
-#-----------
-$CheckOutputObj = Get-Service -name $CheckInputDaTa.service_to_check
-
-#Format output
-$CheckOuputJson = $CheckOutputObj | ConvertTo-Json
-$CheckOuputJsonBytes  = [System.Text.Encoding]::UTF8.GetBytes($CheckOuputJson)
-$CheckOuputJsonBytesBase64 = [System.Convert]::ToBase64String($CheckOuputJsonBytes)
-Write-Host $CheckOuputJsonBytesBase64
-"""
+# Ideally, SQL Server would read all pages from the buffer cache and there will be no need to read any from disk.
+# In this case, the Buffer Cache Hit Ratio value would be 100. # The recommended value for Buffer Cache Hit Ratio is over 90.
+# (http://www.sqlshack.com/)
+DEFAULT_CRITICAL = 90.0
+DEFAULT_WARNING = 90.0
 
 
 # OPT parsing
 # -----------
 parser = optparse.OptionParser(
     "%prog [options]", version="%prog " + version)
-parser.add_option('-H', '--hostname',
-                  dest="hostname",
-                  help='Hostname to connect to')
-parser.add_option('-p', '--port',
-                  dest="port", type="int", default=5986,
-                  help='WinRM HTTP port to connect to. Default : HTTPS - 5986')
-parser.add_option('-s', '--http-scheme',
-                  dest="scheme", default="https",
-                  help='WinRM HTTP scheme to connect to. Default : https://')
-parser.add_option('-U', '--user',
-                  dest="user", default="shinken",
-                  help='remote use to use. By default shinken.')
-parser.add_option('-P', '--password',
-                  dest="password",
-                  help='Password. By default will use void')
-parser.add_option('-S', '--service',
-                  dest="service", default=None,
-                  help='Service to check')
-parser.add_option('--debug',
-                  dest="debug", default=False, action="store_true",
-                  help='Enable debug')
+usage = """%prog [options]
+
+Cache Hit Ration Indicates It gives the ratio of the data pages found and read from the SQL Server buffer cache and all data page requests.
+The pages that are not found in the buffer cache are read from the disk, which is significantly slower and affects performance.
+The recommended value for Buffer Cache Hit Ratio is over 90.
+(http://www.sqlshack.com/)"
+"""
+parser = optparse.OptionParser(usage=usage)
+
+parser = WindowsSystemHelpers.add_winrm_parser_options(parser)
+parser = MSSQLHelpers.add_mssql_perfmon_parser_options(parser)
+
+parser.add_option('-w', '--warning',
+                  dest="warning", type="float",
+                  help='Warning value for cache hit ratio. In [%]. Default : 90.0 ')
+parser.add_option('-c', '--critical',
+                  dest="critical", type="float",
+                  help='Critical value for cache hit ratio. In [%]. Default : 90.0 ')
+
 
 if __name__ == '__main__':
     # Ok first job : parse args
@@ -151,11 +99,16 @@ if __name__ == '__main__':
     password = opts.password
     debug = opts.debug
 
-    # get service
-    if opts.service is None:
-        raise Exception("You must specify a service to check")
 
-    service_name = opts.service
+    # Try to get numeic warning/critical values
+    s_warning = opts.warning or DEFAULT_WARNING
+    s_critical = opts.critical or DEFAULT_CRITICAL
+
+    #instance to monitor
+    if opts.mssqlinstance_to_check is None:
+        parser.error("You must specify a mssql instance")
+
+    mssqlinstance_to_check = opts.mssqlinstance_to_check
 
     try:
         # Connect to the remote host
@@ -171,15 +124,16 @@ if __name__ == '__main__':
             )
         )
 
-        # Fill script data
-        data = {
-            "service_to_check": service_name
+        #check parameters
+        check_parameters = {
+            "mssqlinstance_to_check": mssqlinstance_to_check,
+            "perfcounter_to_check": ":Buffer Manager\Buffer cache hit ratio"
         }
 
-        #prepare the script
+        #create final powershell script
         executable_ps_script = PowerShellHelpers.generate_ps(
-            ps_script,
-            data
+            MSSQLHelpers.PS_SCRIPT_MSSQL_COUNTER,
+            check_parameters      
         )
 
         if debug:
@@ -188,39 +142,47 @@ if __name__ == '__main__':
             print(executable_ps_script)
 
         #execute the scripte
-        service_state = PowerShellHelpers.ececute_powershell(
+        raw_buffer_sample = PowerShellHelpers.ececute_powershell(
             client,
             executable_ps_script,
             debug
         )
+
         if debug:
             print("check output")
             print("------------")
-            print(service_state)
+            print(raw_buffer_sample)
 
         #check logic
-        service_status_code = service_state['Status']
-        if service_status_code in DEFAULT_OK:
-            status = "OK"
-        elif service_status_code in DEFAULT_WARNING:
-            status = "Warning"
-        elif service_status_code in DEFAULT_CRITICAL:
-            status = "Critical"
-        else:
-            raise Exception("Invalid service status")
+        status = 'OK'
+        avg_message = "{l}% CacheHitRatio".format(
+            l=raw_buffer_sample,            
+        )
+        if raw_buffer_sample <= s_warning:
+            status = 'Warning'
+        if raw_buffer_sample <= s_critical:
+            status = 'Critical'
 
-        message = "{s} state is : {status}".format(
-            s=service_name,
-            status=WINDOWS_SERVICE_STATUS[service_status_code]
+        #Format perf data string
+        con_perf_data_string = OutputFormatHelpers.perf_data_string(
+            label="CacheHitRatio",
+            value=raw_buffer_sample,
+            warn=s_warning,
+            crit=s_critical,
+            min='100.0',
+            max='0.0',
+            UOM='%'
         )
 
+        #print output
         output = OutputFormatHelpers.check_output_string(
             status,
-            message,
-            None
+            avg_message,
+            [con_perf_data_string]
         )
 
         print(output)
+
 
     except Exception as e:
         if debug:

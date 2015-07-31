@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # Copyright (C) 2013:
@@ -17,7 +16,7 @@
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMEsNT. IN NO EVENT SHALL THE
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
@@ -30,8 +29,11 @@ version = "0.0.1"
 
 import json
 import base64
+import optparse
+from pprint import pprint
 
 class PowerShellHelpers(object):
+
 
     @classmethod
     def ececute_powershell(
@@ -43,7 +45,7 @@ class PowerShellHelpers(object):
         """
         Execute powershel `script` on `client`
         This function is build to receive Base64(Json(data)) output from the
-            powerhell script
+            powershell script
         :param client: connection
         :type client: pywinrm object
         :param script: powershell script to execute
@@ -62,8 +64,9 @@ class PowerShellHelpers(object):
 
         #normalize result
         result = base64.urlsafe_b64decode(response.std_out)
+        #pprint(result)
         result = json.loads(result)
-
+        #pprint(result)
         return result
 
     PS_INPUT_JSON = """
@@ -82,7 +85,7 @@ $CheckInputDaTa = $CheckInputJson | ConvertFrom-Json
         """
         Generate the powershell script by resolving `{palceholder}` with `input_data` and
         Constant {placeholéder}
-        :param input_data: data to include within the scripte
+        :param input_data: data to include within the script
         :type input_data: Dict
         :param script: The powershell script
         :type script: str
@@ -94,14 +97,130 @@ $CheckInputDaTa = $CheckInputJson | ConvertFrom-Json
             input_data,
             sort_keys=True
         )
+
         json_data = base64.urlsafe_b64encode(json_data)
         data_string = cls.PS_INPUT_JSON.format(data=json_data)
-
+ 
         output_script = output_script.format(
             check_input_json=data_string
         )
 
         return output_script
+
+
+class WindowsSystemHelpers(object):
+
+    PS_SCRIPT_MOUNTED_VOLUME = """
+#Functions
+#---------
+
+#check input data
+#----------------
+{check_input_json}
+
+
+#Obtain data
+#-----------
+$TotalGB = @{{Name="Capacity(GB)";expression={{[math]::round(($_.Capacity/ 1073741824),2)}}}}
+$FreeGB = @{{Name="FreeSpace(GB)";expression={{[math]::round(($_.FreeSpace / 1073741824),2)}}}}
+$UsedPerc = @{{Name="Used(%)";expression={{[math]::round(((($_.Capacity / 1073741824)-($_.FreeSpace / 1073741824))/($_.Capacity / 1073741824)*100),0)}}}}
+
+$volumes = Get-WmiObject win32_volume | Where-object {{$_.DriveLetter -eq $null}}
+$CheckOutputObj = $volumes | Select  Label, $TotalGB, $FreeGB, $UsedPerc
+
+#Format output
+$CheckOuputJson = $CheckOutputObj | ConvertTo-Json
+$CheckOuputJsonBytes  = [System.Text.Encoding]::UTF8.GetBytes($CheckOuputJson)
+$CheckOuputJsonBytesBase64 = [System.Convert]::ToBase64String($CheckOuputJsonBytes)
+Write-Host $CheckOuputJsonBytesBase64
+"""
+
+    @classmethod
+    def add_winrm_parser_options(
+        cls,
+        parser
+    ):
+        parser.add_option('-H', '--hostname',
+                          dest="hostname",
+                          help='Hostname to connect to')
+        parser.add_option('-p', '--port',
+                          dest="port", type="int", default=5986,
+                          help='WinRM HTTP port to connect to. Default : HTTPS - 5986')
+        parser.add_option('-s', '--http-scheme',
+                          dest="scheme", default="https",
+                          help='WinRM HTTP scheme to connect to. Default : https://')
+        parser.add_option('-U', '--user',
+                          dest="user", default="shinken",
+                          help='remote use to use. By default shinken.')
+        parser.add_option('-P', '--password',
+                          dest="password",
+                          help='Password. By default will use void')
+        parser.add_option('--debug',
+                          dest="debug", default=False, action="store_true",
+                          help='Enable debug')
+        return parser
+
+class MSSQLHelpers(object):
+
+    PS_SCRIPT_MSSQL_QUERY = """
+#Functions
+#---------
+
+#check input data
+#----------------
+{check_input_json}
+
+#Obtain data
+#-----------
+Import-Module sqlps -WarningAction Ignore
+$CheckOutputObj = Invoke-Sqlcmd -Query $CheckInputDaTa.sql_script -SuppressProviderContextWarning  -serverInstance ("localhost\\" + $CheckInputDaTa.mssqlinstance_to_check) |  foreach-object {{$_.nb_db_errors}}
+$CheckOutputObj = [double]$CheckOutputObj
+
+
+#Format output
+$CheckOuputJson = $CheckOutputObj | ConvertTo-Json
+$CheckOuputJsonBytes  = [System.Text.Encoding]::UTF8.GetBytes($CheckOuputJson)
+$CheckOuputJsonBytesBase64 = [System.Convert]::ToBase64String($CheckOuputJsonBytes)
+Write-Host $CheckOuputJsonBytesBase64
+"""
+
+
+    PS_SCRIPT_MSSQL_COUNTER = """
+#Functions
+#---------
+
+#check input data
+#----------------
+{check_input_json}
+
+#Obtain data
+#-----------
+#$CheckOutputObj = Get-counter -Counter ("\MSSQL`$" + $CheckInputDaTa.mssqlinstance_to_check + ":Buffer Manager\Buffer cache hit ratio") | Select-Object -ExpandProperty CounterSamples | foreach {{$_.CookedValue}}
+$CheckOutputObj = Get-counter -Counter ("\MSSQL`$" + $CheckInputDaTa.mssqlinstance_to_check + $CheckInputDaTa.perfcounter_to_check) | Select-Object -ExpandProperty CounterSamples | foreach {{$_.CookedValue}}
+
+#Format output
+$CheckOuputJson = $CheckOutputObj | ConvertTo-Json
+$CheckOuputJsonBytes  = [System.Text.Encoding]::UTF8.GetBytes($CheckOuputJson)
+$CheckOuputJsonBytesBase64 = [System.Convert]::ToBase64String($CheckOuputJsonBytes)
+Write-Host $CheckOuputJsonBytesBase64
+"""
+
+
+    @classmethod
+    def add_mssql_perfmon_parser_options(
+            cls,
+            parser
+    ):
+       
+        parser.add_option('--property',
+                          dest="property_script", default=None,
+                          help='property id to display')
+        parser.add_option('-I',
+                          dest="mssqlinstance_to_check", default="MSSQLSERVER",
+                          help='MSSQL Instance to check')
+
+        return parser
+
 
 
 class OutputFormatHelpers(object):
@@ -148,7 +267,7 @@ class OutputFormatHelpers(object):
 
     @classmethod
     def check_output_string(
-            cls,
+            cls,    
             state,
             message,
             perfdata
@@ -172,7 +291,6 @@ class OutputFormatHelpers(object):
         if perfdata is not None:
             if not hasattr(perfdata, '__iter__'):
                 raise Exception("Submited perf data list is not iterable")
-
             perfdata_string = ''.join(' {s} '.format(s=data) for data in perfdata)
             output_template = "{s}: {m} |{d}"
         else:
@@ -185,6 +303,12 @@ class OutputFormatHelpers(object):
             d=perfdata_string
         )
 
+
+
+#toujours_tout_en_minuscul
+#sauf LeNomDesCLass
+#et des CONSTANTE
+#_PS_SCRIPT_COUNTER     
 
 if __name__ == '__main__':
    pass
