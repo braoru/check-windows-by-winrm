@@ -69,20 +69,20 @@ ps_script = """
 #----------------
 {check_input_json}
 
-
 #Obtain data
 #-----------
-$CheckOutputObj = Get-counter -Counter "\Processor(_Total)\% Processor Time" -SampleInterval $CheckInputDaTa.sample_interval -MaxSamples $CheckInputDaTa.max_sample |
+$CheckOutputObj += Get-counter -Counter "\Processor(_Total)\% Processor Time" -SampleInterval $CheckInputDaTa.sample_interval -MaxSamples $CheckInputDaTa.max_sample |
     Foreach-Object {{$_.CounterSamples[0].CookedValue}}
 
+$outputObj = New-Object -TypeName psobject
+$outputObj | Add-Member -Type NoteProperty -Name cpu_sample -Value @($CheckOutputObj)
+
 #Format output
-$CheckOuputJson = $CheckOutputObj | ConvertTo-Json
+$CheckOuputJson = ConvertTo-Json $outputObj
 $CheckOuputJsonBytes  = [System.Text.Encoding]::UTF8.GetBytes($CheckOuputJson)
 $CheckOuputJsonBytesBase64 = [System.Convert]::ToBase64String($CheckOuputJsonBytes)
 Write-Host $CheckOuputJsonBytesBase64
 """
-
-
 
 # OPT parsing
 # -----------
@@ -184,29 +184,28 @@ if __name__ == '__main__':
             print("------------")
             pprint(raw_cpu_sample)
 
-        #Process data 
-        if type(raw_cpu_sample) is float:
-            five_sec_load_average = raw_cpu_sample
-        else:
-            five_sec_load_average = mean(raw_cpu_sample)
+        #Process data
+            cpu_sample = raw_cpu_sample['cpu_sample']
+            cpu_average = mean(cpu_sample)
+            cpu_average
 
         measurement_time = sample_interval * max_sample
 
         #check logic
         status = 'OK'
         avg_message = "{l}% {t}s load average".format(
-            l=five_sec_load_average,
+            l=cpu_average,
             t=measurement_time
         )
-        if five_sec_load_average >= s_warning:
+        if cpu_average >= s_warning:
             status = 'Warning'
-        if five_sec_load_average >= s_critical:
+        if cpu_average >= s_critical:
             status = 'Critical'
             
         #Format perf data string
         con_perf_data_string = OutputFormatHelpers.perf_data_string(
             label="{t}s_load_avg".format(t=measurement_time),
-            value=five_sec_load_average,
+            value=cpu_average,
             warn=s_warning,
             crit=s_critical,
             min='0.0',
