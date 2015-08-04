@@ -184,8 +184,11 @@ if __name__ == '__main__':
             print("------------")
             pprint(raw_cpu_sample)
 
-        #Process data
-        five_sec_load_average = mean(raw_cpu_sample)
+        #Process data 
+        if type(raw_cpu_sample) is float:
+            five_sec_load_average = raw_cpu_sample
+        else:
+            five_sec_load_average = mean(raw_cpu_sample)
 
         measurement_time = sample_interval * max_sample
 
