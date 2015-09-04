@@ -54,8 +54,8 @@ except ImportError:
 
 #DEFAULT LIMITS
 #--------------
-DEFAULT_WARNING = 90
-DEFAULT_CRITICAL = 90
+DEFAULT_WARNING = 900
+DEFAULT_CRITICAL = 900
 
 
 # OPT parsing

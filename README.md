@@ -33,12 +33,6 @@ Currently it's only tested with SSL+BasicAuth on 2012R2
 * Snippet placeholder ```{xx}``` of code are replaced before execution
 * Currently [generate_ps](https://github.com/braoru/check-windows-by-winrm/blob/master/winrm_checks.py#L66) is in charge of snippet placeholder replacement
 
-##Example with the echo test
-
-Original PowerShell
-```PowerShell
-
-
 
 #Install
 
