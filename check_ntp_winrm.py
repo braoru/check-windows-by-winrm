@@ -55,8 +55,8 @@ except ImportError:
 
 #DEFAULT LIMITS
 #--------------
-DEFAULT_WARNING = 0.5
-DEFAULT_CRITICAL = 0.5
+DEFAULT_WARNING = 1000
+DEFAULT_CRITICAL = 1000
 
 
 # Powershell
@@ -74,8 +74,7 @@ ps_script = """
 #-----------
 $ntp_result = (w32tm /stripchart /computer:time.leshop.local /samples:1) | select -last 1
 #$ntp_delay = (($ntp_result -replace (".*d\:")).Substring(2) -replace "s.*").Substring(0,9)
-$ntp_offset = (($ntp_result -replace ".*o\:").substring(2)  -replace "s.*").substring(0,9)
-$ntp_offset = [double]$ntp_offset
+$ntp_offset = [math]::Round([double](($ntp_result -replace ".*o\:").substring(2)  -replace "s.*").substring(0,9)*1000)
 
 #$obj = New-Object PSObject
 #Add-Member -InputObject $obj -MemberType NoteProperty -Name ntp_delay -Value "$ntp_delay"
@@ -96,7 +95,7 @@ parser = optparse.OptionParser(
     "%prog [options]", version="%prog " + version)
 usage = """%prog [options]
 
-Retrieve ntp offset in s
+Retrieve ntp offset in ms
 """
 
 parser = optparse.OptionParser(usage=usage)
@@ -118,10 +117,10 @@ parser.add_option('-P', '--password',
                   help='Password. By default will use void')
 parser.add_option('-w', '--warning',
                   dest="warning", type="float",
-                  help='Warning value for connection. In [ms]. Default : 0.5 [s]')
+                  help='Warning value for connection. In [ms]. Default : 1000 [ms]')
 parser.add_option('-c', '--critical',
                   dest="critical", type="float",
-                  help='Critical value for connection. In [ms]. Default : 0.5 [s]')
+                  help='Critical value for connection. In [ms]. Default : 1000 [ms]')
 parser.add_option('--debug',
                   dest="debug", default=False, action="store_true",
                   help='Enable debug')
@@ -183,7 +182,7 @@ if __name__ == '__main__':
 
         #check logic
         status = 'OK'
-        avg_message = "{l}s ntp offset".format(
+        avg_message = "{l}ms ntp offset".format(
             l=ntp_offset            
         )
 
@@ -192,13 +191,13 @@ if __name__ == '__main__':
             
         #Format perf data string
         con_perf_data_string = OutputFormatHelpers.perf_data_string(
-            label="{t}s_ntp_offset".format(t=ntp_offset),
+            label="{t}ms_ntp_offset".format(t=ntp_offset),
             value=ntp_offset,
             warn=s_warning,
             crit=s_critical,
-            min='0.0',
-            max='0.5',
-            UOM='s'
+            min='00',
+            max='1000',
+            UOM='ms'
         )
 
         #print output
