@@ -39,7 +39,7 @@ Currently it's only tested with SSL+BasicAuth on 2012R2
 ##Install check
 
 ```Bash
-git clone git@git.internal.leshop.ch:IO/check-windows-by-winrm.git
+git clone https://github.com/braoru/check-windows-by-winrm.git
 virtualenv check-windows-by-winrm
 cd check-windows-by-winrm
 source bin/activate
