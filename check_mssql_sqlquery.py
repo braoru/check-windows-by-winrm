@@ -82,10 +82,10 @@ parser.add_option('-c', '--critical',
                   help='Critical value for connection. In [ms]. Default : 1')
 parser.add_option('--sample-interval',
                   dest="sample_interval", type="int", default=1,
-                  help='Cpu sampling interval. In [s]. Default : 1 [s]')
+                  help='Sampling interval. In [s]. Default : 1 []')
 parser.add_option('--max-sample',
                   dest="max_sample", type="int", default=1,
-                  help='Cpu sampling number. In [number]. Default : 5')
+                  help='Sampling number. In [number]. Default : 5')
 parser.add_option('-I',
                   dest="mssqlinstance_to_check", default="MSSQLSERVER",
                   help='MSSQL Instance to check')
@@ -155,7 +155,7 @@ if __name__ == '__main__':
             print(executable_ps_script)
 
         #execute the scripte
-        raw_cpu_sample = PowerShellHelpers.ececute_powershell(
+        raw_sample = PowerShellHelpers.ececute_powershell(
             client,
             executable_ps_script,
             debug
@@ -164,33 +164,33 @@ if __name__ == '__main__':
         if debug:
             print("check output")
             print("------------")
-            print(raw_cpu_sample)
+            print(raw_sample)
 
         #Process data
-        #five_sec_load_average = mean(raw_cpu_sample)
+        #five_sec_load_average = mean(raw_sample)
 
         measurement_time = sample_interval * max_sample
 
         #Format perf data string
         con_perf_data_string = OutputFormatHelpers.perf_data_string(
-            label="{t}s_load_avg".format(t=measurement_time),
-            value=raw_cpu_sample,
+            label="{t} load_avg".format(t=measurement_time),
+            value=raw_sample,
             warn=s_warning,
             crit=s_critical,
-            min='0.0',
-            max='100.0',
+            min='0',
+            max='1',
             UOM=''
         )
 
         #check logic
         status = 'OK'
-        avg_message = "{l}% {t}s load average".format(
-            l=raw_cpu_sample,
+        avg_message = "{l} {t}s load average".format(
+            l=raw_sample,
             t=measurement_time
         )
-        if raw_cpu_sample >= s_warning:
+        if raw_sample >= s_warning:
             status = 'Warning'
-        if raw_cpu_sample >= s_critical:
+        if raw_sample >= s_critical:
             status = 'Critical'
 
         #print output

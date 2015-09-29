@@ -58,12 +58,12 @@ class PowerShellHelpers(object):
             print("raw output")
             print("----------")
             print(response)
+            print(response.std_err)
 
         if not response:
             raise Exception("cannot fetch values from host")
-
         #normalize result
-        result = base64.urlsafe_b64decode(response.std_out)
+        result = base64.decodestring(response.std_out)
         #pprint(result)
         result = json.loads(result)
         #pprint(result)
@@ -92,15 +92,15 @@ $CheckInputDaTa = $CheckInputJson | ConvertFrom-Json
         :return: Fullfiled script
         """
         output_script = script
-
+        
         json_data = json.dumps(
             input_data,
             sort_keys=True
         )
-
-        json_data = base64.urlsafe_b64encode(json_data)
+        
+        json_data = base64.encodestring(json_data)
         data_string = cls.PS_INPUT_JSON.format(data=json_data)
- 
+
         output_script = output_script.format(
             check_input_json=data_string
         )
@@ -173,10 +173,8 @@ class MSSQLHelpers(object):
 #Obtain data
 #-----------
 Import-Module sqlps -WarningAction Ignore
-$CheckOutputObj = Invoke-Sqlcmd -Query $CheckInputDaTa.sql_script -SuppressProviderContextWarning  -serverInstance ("localhost\\" + $CheckInputDaTa.mssqlinstance_to_check) |  foreach-object {{$_.nb_db_errors}}
+$CheckOutputObj = Invoke-Sqlcmd -Query $CheckInputDaTa.sql_script -SuppressProviderContextWarning  -serverInstance ("localhost\\" + $CheckInputDaTa.mssqlinstance_to_check) | foreach-object {{$_.nb_db_errors}}
 $CheckOutputObj = [double]$CheckOutputObj
-
-
 #Format output
 $CheckOuputJson = $CheckOutputObj | ConvertTo-Json
 $CheckOuputJsonBytes  = [System.Text.Encoding]::UTF8.GetBytes($CheckOuputJson)
@@ -195,9 +193,7 @@ Write-Host $CheckOuputJsonBytesBase64
 
 #Obtain data
 #-----------
-#$CheckOutputObj = Get-counter -Counter ("\MSSQL`$" + $CheckInputDaTa.mssqlinstance_to_check + ":Buffer Manager\Buffer cache hit ratio") | Select-Object -ExpandProperty CounterSamples | foreach {{$_.CookedValue}}
 $CheckOutputObj = Get-counter -Counter ("\MSSQL`$" + $CheckInputDaTa.mssqlinstance_to_check + $CheckInputDaTa.perfcounter_to_check) | Select-Object -ExpandProperty CounterSamples | foreach {{$_.CookedValue}}
-
 #Format output
 $CheckOuputJson = $CheckOutputObj | ConvertTo-Json
 $CheckOuputJsonBytes  = [System.Text.Encoding]::UTF8.GetBytes($CheckOuputJson)
