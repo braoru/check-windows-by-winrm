@@ -177,7 +177,7 @@ if __name__ == '__main__':
 
         #Format perf data string
         con_perf_data_string = OutputFormatHelpers.perf_data_string(
-            label="{t} load_avg".format(t=measurement_time),
+            label="{t} health-check".format(t=measurement_time),
             value=raw_sample,
             warn=s_warning,
             crit=s_critical,
@@ -188,7 +188,7 @@ if __name__ == '__main__':
 
         #check logic
         status = 'OK'
-        avg_message = "{l} {t}s load average".format(
+        avg_message = "{l} {t} health-check".format(
             l=raw_sample,
             t=measurement_time
         )
