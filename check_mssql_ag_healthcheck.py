@@ -57,6 +57,11 @@ except ImportError:
 DEFAULT_WARNING = 1
 DEFAULT_CRITICAL = 1
 
+
+#SQL QUERY
+#--------
+AG_HEALTH_QUERY = "IF EXISTS (SELECT 1 FROM sys.dm_hadr_availability_group_states AS rgs JOIN sys.availability_groups AS g ON rgs.group_id = g.group_id WHERE g.name = '{group_name}' AND (CASE WHEN rgs.primary_recovery_health IS NULL THEN rgs.secondary_recovery_health_desc ELSE rgs.primary_recovery_health_desc END <> 'ONLINE') OR (CASE WHEN rgs.primary_recovery_health IS NOT NULL THEN synchronization_health_desc ELSE 'HEALTHY' END <> 'HEALTHY')) SELECT 1 as nb_db_errors ELSE  SELECT 0 as nb_db_errors"
+
 # OPT parsing
 # ----------- 
 parser = optparse.OptionParser(
@@ -64,16 +69,13 @@ parser = optparse.OptionParser(
 
 usage = """%prog [options]
 
-Execute custom SQL query
+Execute SQL query
 """
 
 parser = optparse.OptionParser(usage=usage)
 
 parser = WindowsSystemHelpers.add_winrm_parser_options(parser)
 
-parser.add_option('-S',
-                  dest="sql_script", default=None,
-                  help='sql script to process')
 parser.add_option('-w', '--warning',
                   dest="warning", type="float",
                   help='Warning value for connection. In [ms]. Default : 1')
@@ -113,10 +115,10 @@ if __name__ == '__main__':
     s_critical = opts.critical or DEFAULT_CRITICAL
 
     # get PErformance counter
-    if opts.sql_script is None:
-        raise Exception("You must specify a SQL script to check")
+    # if opts.sql_script is None:
+    #    raise Exception("You must specify a SQL script to check")
 
-    sql_script = opts.sql_script
+    alp_group_name = opts.hostname
     mssqlinstance_to_check = opts.mssqlinstance_to_check
 
     try:
@@ -132,6 +134,8 @@ if __name__ == '__main__':
                 password
             )
         )
+
+        sql_script = AG_HEALTH_QUERY.format(group_name=alp_group_name)
 
         #sampling parameters
         check_parameters = {
@@ -173,7 +177,7 @@ if __name__ == '__main__':
 
         #Format perf data string
         con_perf_data_string = OutputFormatHelpers.perf_data_string(
-            label="{t} load_avg".format(t=measurement_time),
+            label="Health-Check",
             value=raw_sample,
             warn=s_warning,
             crit=s_critical,
@@ -184,9 +188,8 @@ if __name__ == '__main__':
 
         #check logic
         status = 'OK'
-        avg_message = "{l} {t}s load average".format(
-            l=raw_sample,
-            t=measurement_time
+        avg_message = "{l} AvailabilityGroup health".format(
+            l=raw_sample        
         )
         if raw_sample >= s_warning:
             status = 'Warning'

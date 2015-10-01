@@ -60,7 +60,7 @@ DEFAULT_CRITICAL = 1
 
 #SQL QUERY
 #--------
-AO_HEALTH_QUERY = "IF EXISTS (SELECT 1 FROM sys.dm_hadr_availability_group_states AS rgs JOIN sys.availability_groups AS g ON rgs.group_id = g.group_id WHERE g.name = '{group_name}' AND (CASE WHEN rgs.primary_recovery_health IS NULL THEN rgs.secondary_recovery_health_desc ELSE rgs.primary_recovery_health_desc END <> 'ONLINE') OR (CASE WHEN rgs.primary_recovery_health IS NOT NULL THEN synchronization_health_desc ELSE 'HEALTHY' END <> 'HEALTHY')) SELECT 1 as nb_db_errors ELSE  SELECT 0 as nb_db_errors"
+SQL_QUERY = "SELECT 'databases in failed state:' as parameter,COUNT(*) AS nb_db_errors FROM sys.databases WHERE state IN (1, 3, 4, 5, 6, 7)"
 
 # OPT parsing
 # ----------- 
@@ -135,7 +135,7 @@ if __name__ == '__main__':
             )
         )
 
-        sql_script = AO_HEALTH_QUERY.format(group_name=alp_group_name)
+        sql_script = SQL_QUERY.format(group_name=alp_group_name)
 
         #sampling parameters
         check_parameters = {
@@ -177,7 +177,7 @@ if __name__ == '__main__':
 
         #Format perf data string
         con_perf_data_string = OutputFormatHelpers.perf_data_string(
-            label="{t} health-check".format(t=measurement_time),
+            label="DB Health",
             value=raw_sample,
             warn=s_warning,
             crit=s_critical,
@@ -188,9 +188,8 @@ if __name__ == '__main__':
 
         #check logic
         status = 'OK'
-        avg_message = "{l} {t} health-check".format(
-            l=raw_sample,
-            t=measurement_time
+        avg_message = "{l} Database health".format(
+            l=raw_sample        
         )
         if raw_sample >= s_warning:
             status = 'Warning'
