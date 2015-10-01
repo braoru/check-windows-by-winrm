@@ -72,12 +72,13 @@ update-ca-trust extract
 
 ##Enable auth on Windows 2008 R2 and 2012r2 +
 
-import valid certificate in "computer account" personal store (to automate)
+#import valid certificate in "computer account" personal store (to automate)
+mmc -> Add cert Snap-ins for computer account -> Personal-Certificates --> Request certif (WebServer3) --> Select "Common name" in Subject with value as computer name: computername.domain.local
 
+#Configure WinRM
 ```PowerShell
 #Configure WinRM to listen on HTTPS
-winrm quickconfig -transport:https
-
+winrm quickconfig -transport:https -quiet
 winrm set winrm/config/client/auth '@{Basic="true"}'
 winrm set winrm/config/service/auth '@{Basic="true"}'
 
